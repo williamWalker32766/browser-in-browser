@@ -1,39 +1,24 @@
-const DEFAULT_HOME = 'https://www.google.com';
 const STORAGE_KEYS = {
-  bookmarks: 'mini-browser-bookmarks',
-  history: 'mini-browser-history',
+  tabs: 'browser-tabs-v2',
+  theme: 'browser-theme-v2',
+  searchEngine: 'browser-search-engine-v2',
 };
 
-const state = {
-  bookmarks: loadFromStorage(STORAGE_KEYS.bookmarks, [
-    { name: 'Google', url: 'https://www.google.com' },
-    { name: 'GitHub', url: 'https://github.com' },
-    { name: 'YouTube', url: 'https://www.youtube.com' },
-    { name: 'Wikipedia', url: 'https://www.wikipedia.org' },
-  ]),
-  history: loadFromStorage(STORAGE_KEYS.history, []),
-  currentUrl: DEFAULT_HOME,
+const SEARCH_ENGINES = {
+  google: 'https://www.google.com/search?q=',
+  bing: 'https://www.bing.com/search?q=',
+  duckduckgo: 'https://duckduckgo.com/?q=',
 };
 
-const browserFrame = document.getElementById('browserFrame');
-const addressBar = document.getElementById('addressBar');
-const bookmarkList = document.getElementById('bookmarkList');
-const bookmarkDetailList = document.getElementById('bookmarkDetailList');
-const historyList = document.getElementById('historyList');
-const savedPagesCount = document.getElementById('savedPagesCount');
-const blockedMessage = document.getElementById('blockedMessage');
-
-const navButtons = document.querySelectorAll('.nav-button');
-const viewPanels = {
-  home: document.getElementById('homeView'),
-  bookmarks: document.getElementById('bookmarksView'),
-  history: document.getElementById('historyView'),
-};
+function uid() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 function loadFromStorage(key, fallback) {
   try {
-    const value = JSON.parse(localStorage.getItem(key));
-    return Array.isArray(value) ? value : fallback;
+    const value = localStorage.getItem(key);
+    if (value === null) return fallback;
+    return JSON.parse(value);
   } catch {
     return fallback;
   }
@@ -43,183 +28,223 @@ function saveToStorage(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function normalizeUrl(value) {
-  if (!value) return '';
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed;
-  }
-
-  if (/^(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)(:\d+)?/i.test(trimmed)) {
-    return `http://${trimmed}`;
-  }
-
-  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(trimmed)) {
-    return `https://${trimmed}`;
-  }
-
-  return `https://${trimmed}`;
-}
-
-function getDomainLabel(url) {
+function getSiteName(url) {
   try {
     const parsed = new URL(url);
     return parsed.hostname.replace('www.', '');
   } catch {
-    return 'site';
+    return 'New tab';
   }
 }
 
-function renderBookmarks() {
-  const items = state.bookmarks.slice(0, 5);
-  bookmarkList.innerHTML = items
+function isLikelySearchQuery(value) {
+  if (!value || value.trim() === '') return false;
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return false;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(trimmed)) return false;
+  return true;
+}
+
+function normalizeUrl(rawValue, engine = state.searchEngine) {
+  const value = rawValue.trim();
+  if (!value) return '';
+
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  if (/^www\./i.test(value)) {
+    return `https://${value}`;
+  }
+
+  if (/^(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)(:\d+)?$/i.test(value)) {
+    return `http://${value}`;
+  }
+
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(value)) {
+    return `https://${value}`;
+  }
+
+  if (SEARCH_ENGINES[engine]) {
+    return `${SEARCH_ENGINES[engine]}${encodeURIComponent(value)}`;
+  }
+
+  return `https://${value}`;
+}
+
+function getDisplayTitleForUrl(url) {
+  if (!url) return 'New tab';
+  const parsed = new URL(url);
+  const hostname = parsed.hostname.replace(/^www\./i, '');
+  return hostname || 'New tab';
+}
+
+const state = {
+  tabs: loadFromStorage(STORAGE_KEYS.tabs, [
+    { id: uid(), title: 'Google', url: 'https://www.google.com' },
+  ]),
+  activeTabId: null,
+  theme: loadFromStorage(STORAGE_KEYS.theme, 'dark'),
+  searchEngine: loadFromStorage(STORAGE_KEYS.searchEngine, 'google'),
+};
+
+const tabsBar = document.getElementById('tabsBar');
+const browserFrame = document.getElementById('browserFrame');
+const addressBar = document.getElementById('addressBar');
+const searchEngineSelect = document.getElementById('searchEngineSelect');
+const blockedMessage = document.getElementById('blockedMessage');
+const themeToggle = document.getElementById('themeToggle');
+
+function getActiveTab() {
+  return state.tabs.find((tab) => tab.id === state.activeTabId) || state.tabs[0];
+}
+
+function renderTabs() {
+  tabsBar.innerHTML = state.tabs
     .map(
-      (item) => `
-        <div class="bookmark-item">
-          <div class="bookmark-name">
-            <span class="bookmark-favicon">${getDomainLabel(item.url).slice(0, 1).toUpperCase()}</span>
-            <a class="bookmark-link" href="${item.url}" target="_blank" rel="noreferrer">${item.name}</a>
-          </div>
-          <button class="secondary-button small" data-url="${item.url}" data-action="open-bookmark">Open</button>
-        </div>
+      (tab) => `
+        <button class="tab ${tab.id === state.activeTabId ? 'active' : ''}" data-tab-id="${tab.id}" type="button">
+          <span class="tab-title">${tab.title}</span>
+          <span class="tab-close" data-close-tab="${tab.id}" aria-label="Close tab">×</span>
+        </button>
       `
     )
     .join('');
-
-  bookmarkDetailList.innerHTML = state.bookmarks.length
-    ? state.bookmarks
-        .map(
-          (item) => `
-            <div class="detail-item">
-              <div class="bookmark-name">
-                <span class="bookmark-favicon">${getDomainLabel(item.url).slice(0, 1).toUpperCase()}</span>
-                <div>
-                  <div>${item.name}</div>
-                  <small style="color: var(--muted);">${item.url}</small>
-                </div>
-              </div>
-              <div>
-                <button class="primary-button small" data-url="${item.url}" data-action="open-bookmark">Open</button>
-              </div>
-            </div>
-          `
-        )
-        .join('')
-    : '<div class="empty-state">No bookmarks yet.</div>';
-
-  savedPagesCount.textContent = String(state.bookmarks.length);
 }
 
-function renderHistory() {
-  if (!state.history.length) {
-    historyList.innerHTML = '<div class="empty-state">No browsing history yet.</div>';
+function updateTheme() {
+  document.body.dataset.theme = state.theme;
+  themeToggle.textContent = state.theme === 'dark' ? '☀️' : '🌙';
+  saveToStorage(STORAGE_KEYS.theme, state.theme);
+}
+
+function ensureActiveTab() {
+  if (!state.tabs.length) {
+    const newTab = { id: uid(), title: 'Google', url: 'https://www.google.com' };
+    state.tabs.push(newTab);
+  }
+
+  if (!state.activeTabId || !state.tabs.some((tab) => tab.id === state.activeTabId)) {
+    state.activeTabId = state.tabs[0].id;
+  }
+}
+
+function updateAddressBar() {
+  const activeTab = getActiveTab();
+  if (activeTab) {
+    addressBar.value = activeTab.url || '';
+  }
+}
+
+function saveTabs() {
+  saveToStorage(STORAGE_KEYS.tabs, state.tabs);
+}
+
+function createTab(url = 'https://www.google.com', title = 'Google') {
+  const newTab = {
+    id: uid(),
+    title,
+    url,
+  };
+
+  state.tabs.push(newTab);
+  state.activeTabId = newTab.id;
+  saveTabs();
+  renderTabs();
+  loadTab(newTab.id, url);
+}
+
+function closeTab(tabId) {
+  if (state.tabs.length === 1) {
     return;
   }
 
-  historyList.innerHTML = state.history
-    .slice()
-    .reverse()
-    .map(
-      (item) => `
-        <div class="history-item">
-          <div>
-            <strong>${item.label}</strong>
-            <div style="color: var(--muted); font-size: 0.8rem; margin-top: 4px;">${item.url}</div>
-          </div>
-          <button class="secondary-button small" data-url="${item.url}" data-action="open-bookmark">Visit</button>
-        </div>
-      `
-    )
-    .join('');
-}
-
-function addHistoryEntry(url) {
-  const label = getDomainLabel(url);
-  const exists = state.history.some((item) => item.url === url);
-
-  if (exists) {
-    return;
+  state.tabs = state.tabs.filter((tab) => tab.id !== tabId);
+  if (state.activeTabId === tabId) {
+    state.activeTabId = state.tabs[state.tabs.length - 1].id;
   }
 
-  state.history.push({ url, label });
-  if (state.history.length > 15) {
-    state.history = state.history.slice(-15);
-  }
-  saveToStorage(STORAGE_KEYS.history, state.history);
-  renderHistory();
+  saveTabs();
+  renderTabs();
+  loadTab(state.activeTabId);
 }
 
-function selectView(name) {
-  navButtons.forEach((button) => {
-    button.classList.toggle('active', button.dataset.view === name);
-  });
+function loadTab(tabId, overrideUrl) {
+  const tab = state.tabs.find((item) => item.id === tabId);
+  if (!tab) return;
 
-  Object.entries(viewPanels).forEach(([key, panel]) => {
-    panel.classList.toggle('active', key === name);
-  });
-}
-
-function loadPage(url) {
-  const safeUrl = normalizeUrl(url);
-  if (!safeUrl) {
-    return;
-  }
-
-  state.currentUrl = safeUrl;
-  addressBar.value = safeUrl;
-  browserFrame.src = safeUrl;
+  state.activeTabId = tabId;
+  const finalUrl = overrideUrl || tab.url;
+  tab.url = finalUrl;
+  tab.title = getDisplayTitleForUrl(finalUrl);
+  addressBar.value = finalUrl;
+  browserFrame.src = finalUrl;
   blockedMessage.classList.add('hidden');
-  addHistoryEntry(safeUrl);
+  renderTabs();
+  saveTabs();
 }
 
-function addCurrentPageBookmark() {
-  const url = state.currentUrl || DEFAULT_HOME;
-  const name = getDomainLabel(url);
+function navigateTo(rawValue) {
+  const activeTab = getActiveTab();
+  if (!activeTab) return;
 
-  const exists = state.bookmarks.some((item) => item.url === url);
-  if (!exists) {
-    state.bookmarks.push({ name, url });
-    saveToStorage(STORAGE_KEYS.bookmarks, state.bookmarks);
-    renderBookmarks();
-  }
-}
-
-function handleOpenBookmark(url) {
-  loadPage(url);
-  selectView('home');
-}
-
-browserFrame.addEventListener('load', () => {
-  const url = browserFrame.src;
+  const url = normalizeUrl(rawValue, state.searchEngine);
   if (!url) return;
 
-  const normalized = normalizeUrl(url.replace(/^about:blank$/, ''));
-  if (normalized) {
-    addressBar.value = normalized;
-  }
-});
+  activeTab.url = url;
+  activeTab.title = getDisplayTitleForUrl(url);
+  state.activeTabId = activeTab.id;
+  addressBar.value = url;
+  browserFrame.src = url;
+  blockedMessage.classList.add('hidden');
+  renderTabs();
+  saveTabs();
+}
 
-browserFrame.addEventListener('error', () => {
-  blockedMessage.classList.remove('hidden');
+function syncFromFrame() {
+  const activeTab = getActiveTab();
+  if (!activeTab) return;
+
+  const currentSrc = browserFrame.src || activeTab.url;
+  try {
+    const nextUrl = currentSrc && currentSrc !== 'about:blank' ? currentSrc : activeTab.url;
+    activeTab.url = nextUrl;
+    activeTab.title = getDisplayTitleForUrl(nextUrl);
+    addressBar.value = nextUrl;
+    renderTabs();
+    saveTabs();
+  } catch {
+    // ignore invalid frame URL issues
+  }
+}
+
+searchEngineSelect.value = state.searchEngine;
+searchEngineSelect.addEventListener('change', (event) => {
+  state.searchEngine = event.target.value;
+  saveToStorage(STORAGE_KEYS.searchEngine, state.searchEngine);
+  const activeTab = getActiveTab();
+  if (activeTab) {
+    navigateTo(addressBar.value || activeTab.url);
+  }
 });
 
 addressBar.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
-    loadPage(addressBar.value);
-    selectView('home');
+    navigateTo(addressBar.value);
   }
 });
 
 document.getElementById('goBtn').addEventListener('click', () => {
-  loadPage(addressBar.value);
-  selectView('home');
+  navigateTo(addressBar.value);
+});
+
+document.getElementById('newTabBtn').addEventListener('click', () => {
+  createTab('https://www.google.com', 'Google');
 });
 
 document.getElementById('homeBtn').addEventListener('click', () => {
-  loadPage(DEFAULT_HOME);
-  selectView('home');
+  const activeTab = getActiveTab();
+  navigateTo(activeTab?.url || 'https://www.google.com');
 });
 
 document.getElementById('backBtn').addEventListener('click', () => {
@@ -234,30 +259,35 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   browserFrame.contentWindow?.location.reload();
 });
 
-document.getElementById('addBookmarkBtn').addEventListener('click', addCurrentPageBookmark);
-
-document.querySelectorAll('[data-home-url]').forEach((button) => {
-  button.addEventListener('click', () => {
-    loadPage(button.dataset.homeUrl);
-    selectView('home');
-  });
+themeToggle.addEventListener('click', () => {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  updateTheme();
 });
 
-navButtons.forEach((button) => {
-  button.addEventListener('click', () => {
-    selectView(button.dataset.view);
-  });
+browserFrame.addEventListener('load', () => {
+  syncFromFrame();
 });
 
-document.addEventListener('click', (event) => {
-  const openButton = event.target.closest('[data-action="open-bookmark"]');
-  if (openButton) {
-    handleOpenBookmark(openButton.dataset.url);
+browserFrame.addEventListener('error', () => {
+  blockedMessage.classList.remove('hidden');
+});
+
+tabsBar.addEventListener('click', (event) => {
+  const closeTrigger = event.target.closest('[data-close-tab]');
+  if (closeTrigger) {
+    closeTab(closeTrigger.dataset.closeTab);
+    return;
+  }
+
+  const tabButton = event.target.closest('[data-tab-id]');
+  if (tabButton) {
+    loadTab(tabButton.dataset.tabId);
   }
 });
 
-renderBookmarks();
-renderHistory();
-addressBar.value = DEFAULT_HOME;
-loadPage(DEFAULT_HOME);
-selectView('home');
+updateTheme();
+ensureActiveTab();
+renderTabs();
+updateAddressBar();
+searchEngineSelect.value = state.searchEngine;
+loadTab(state.activeTabId, getActiveTab().url);

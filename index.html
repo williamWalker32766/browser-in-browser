@@ -9,110 +9,51 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div class="brand-row">
-          <div class="brand-mark">B</div>
-          <div>
-            <div class="brand-title">Browser</div>
-            <div class="brand-subtitle">in-browser</div>
-          </div>
+  <body data-theme="dark">
+    <div class="browser-shell">
+      <header class="chrome-header">
+        <div class="tab-strip-wrap">
+          <div id="tabsBar" class="tabs-bar" aria-label="Tabs"></div>
+          <button id="newTabBtn" class="small-icon-button" aria-label="New tab">＋</button>
         </div>
 
-        <nav class="nav-card">
-          <button class="nav-button active" data-view="home">
-            <span>🏠</span>
-            <span>Home</span>
-          </button>
-          <button class="nav-button" data-view="bookmarks">
-            <span>🔖</span>
-            <span>Bookmarks</span>
-          </button>
-          <button class="nav-button" data-view="history">
-            <span>🕘</span>
-            <span>History</span>
-          </button>
-        </nav>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <h3>Quick links</h3>
-          </div>
-          <div id="bookmarkList" class="bookmark-list"></div>
-        </div>
-      </aside>
-
-      <main class="browser-window">
-        <header class="toolbar">
+        <div class="toolbar">
           <div class="nav-controls">
             <button id="backBtn" class="circle-button" aria-label="Back">←</button>
             <button id="forwardBtn" class="circle-button" aria-label="Forward">→</button>
             <button id="refreshBtn" class="circle-button" aria-label="Refresh">⟳</button>
           </div>
 
-          <div class="address-wrap">
-            <span class="address-icon">🔒</span>
-            <input id="addressBar" type="text" spellcheck="false" aria-label="Address bar" />
-            <button id="goBtn" class="primary-button">Go</button>
-          </div>
+          <div class="address-area">
+            <select id="searchEngineSelect" aria-label="Search engine selector">
+              <option value="google">Google</option>
+              <option value="bing">Bing</option>
+              <option value="duckduckgo">DuckDuckGo</option>
+            </select>
 
-          <button id="homeBtn" class="circle-button" aria-label="Home">⌂</button>
-        </header>
-
-        <div id="homeView" class="view-panel active">
-          <div class="home-card">
-            <p class="eyebrow">Launch</p>
-            <h1>Browser in a browser</h1>
-            <p class="subtitle">
-              A simple web app for quick browsing, saved shortcuts, and a clean new interface.
-            </p>
-            <div class="home-actions">
-              <button class="primary-button wide" data-home-url="https://www.google.com">Open Google</button>
-              <button class="secondary-button wide" data-home-url="https://github.com">Open GitHub</button>
+            <div class="address-wrap">
+              <span id="securityIndicator" class="address-icon">🔒</span>
+              <input id="addressBar" type="text" spellcheck="false" aria-label="Address bar" />
+              <button id="goBtn" class="primary-button">Go</button>
             </div>
           </div>
 
-          <div class="stats-grid">
-            <div class="stat-card"> 
-              <div class="stat-label">Status</div>
-              <div class="stat-value">Ready</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Saved pages</div>
-              <div class="stat-value" id="savedPagesCount">0</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Theme</div>
-              <div class="stat-value">Dark</div>
-            </div>
+          <div class="extra-controls">
+            <button id="themeToggle" class="circle-button" aria-label="Toggle theme">☀️</button>
+            <button id="homeBtn" class="circle-button" aria-label="Home">⌂</button>
           </div>
         </div>
+      </header>
 
-        <div id="bookmarksView" class="view-panel">
-          <div class="panel-header large">
-            <h2>Bookmarks</h2>
-            <button id="addBookmarkBtn" class="primary-button small">+ Add current</button>
-          </div>
-          <div id="bookmarkDetailList" class="detail-list"></div>
-        </div>
+      <main class="browser-surface">
+        <iframe
+          id="browserFrame"
+          title="Embedded browser"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        ></iframe>
 
-        <div id="historyView" class="view-panel">
-          <div class="panel-header large">
-            <h2>History</h2>
-          </div>
-          <div id="historyList" class="detail-list"></div>
-        </div>
-
-        <div class="browser-surface">
-          <iframe
-            id="browserFrame"
-            title="Embedded browser"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-          ></iframe>
-          <div id="blockedMessage" class="blocked-message hidden">
-            This site blocks embedding in an iframe. Try a different site or use a different URL.
-          </div>
+        <div id="blockedMessage" class="blocked-message hidden">
+          This site blocks embedding in an iframe. Try a different site or use a different URL.
         </div>
       </main>
     </div>
